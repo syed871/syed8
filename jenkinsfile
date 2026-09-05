@@ -13,7 +13,12 @@ node('ubuntu-agent') {
         }
 
         stage('Compile') {
-            sh 'mvn clean compile -Dmaven.compiler.source=1.8 -Dmaven.compiler.target=1.8'
+            sh '''
+                mvn clean compile \
+                -Dmaven.compiler.source=1.8 \
+                -Dmaven.compiler.target=1.8 \
+                -Dmaven.compiler.release=8
+            '''
         }
 
         stage('Unit Test and OWASP Dependency Check') {
@@ -22,7 +27,12 @@ node('ubuntu-agent') {
 
                 'Unit Test': {
                     stage('Unit Test') {
-                        sh 'mvn test -Dmaven.compiler.source=1.8 -Dmaven.compiler.target=1.8'
+                        sh '''
+                            mvn test \
+                            -Dmaven.compiler.source=1.8 \
+                            -Dmaven.compiler.target=1.8 \
+                            -Dmaven.compiler.release=8
+                        '''
                     }
                 },
 
@@ -43,6 +53,7 @@ node('ubuntu-agent') {
         }
 
         stage('GitLeaks') {
+
             sh '''
                 gitleaks detect \
                 --source . \
@@ -58,7 +69,13 @@ node('ubuntu-agent') {
         }
 
         stage('Package') {
-            sh 'mvn package -DskipTests -Dmaven.compiler.source=1.8 -Dmaven.compiler.target=1.8'
+
+            sh '''
+                mvn package -DskipTests \
+                -Dmaven.compiler.source=1.8 \
+                -Dmaven.compiler.target=1.8 \
+                -Dmaven.compiler.release=8
+            '''
 
             archiveArtifacts(
                 artifacts: 'target/*.war, target/*.jar',
