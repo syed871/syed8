@@ -1,0 +1,83 @@
+node('ubuntu-agent') {
+
+    try {
+
+        stage('Checkout') {
+            checkout scmGit(
+                branches: [[name: '*/master']],
+                extensions: [],
+                userRemoteConfigs: [[
+                    url: 'https://github.com/opstree/spring3hibernate.git'
+                ]]
+            )
+        }
+
+        stage('Compile') {
+            sh 'mvn clean compile -Dmaven.compiler.source=1.8 -Dmaven.compiler.target=1.8'
+        }
+
+        stage('Unit Test and OWASP Dependency Check') {
+
+            parallel(
+
+                'Unit Test': {
+                    stage('Unit Test') {
+                        sh 'mvn test -Dmaven.compiler.source=1.8 -Dmaven.compiler.target=1.8'
+                    }
+                },
+
+                'OWASP Dependency Check': {
+                    stage('OWASP Dependency Check') {
+
+                        dependencyCheck(
+                            additionalArguments: '--scan ./',
+                            odcInstallation: 'Dependency-Check'
+                        )
+
+                        dependencyCheckPublisher(
+                            pattern: '**/dependency-check-report.xml'
+                        )
+                    }
+                }
+            )
+        }
+
+        stage('GitLeaks') {
+            sh '''
+                gitleaks detect \
+                --source . \
+                --no-git \
+                --report-format json \
+                --report-path gitleaks-report.json
+            '''
+
+            archiveArtifacts(
+                artifacts: 'gitleaks-report.json',
+                allowEmptyArchive: true
+            )
+        }
+
+        stage('Package') {
+            sh 'mvn package -DskipTests -Dmaven.compiler.source=1.8 -Dmaven.compiler.target=1.8'
+
+            archiveArtifacts(
+                artifacts: 'target/*.war, target/*.jar',
+                allowEmptyArchive: true
+            )
+        }
+
+    } catch (err) {
+
+        echo "Build failed: ${err}"
+
+        currentBuild.result = 'FAILURE'
+
+        throw err
+
+    } finally {
+
+        echo 'Cleaning workspace...'
+
+        deleteDir()
+    }
+}
