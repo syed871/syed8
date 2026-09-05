@@ -12,12 +12,24 @@ node('ubuntu-agent') {
             )
         }
 
+        stage('Check Project') {
+            sh '''
+                echo "===== Current Directory ====="
+                pwd
+
+                echo "===== Project Files ====="
+                find . -maxdepth 3 -type f | sort
+
+                echo "===== POM Locations ====="
+                find . -name "pom.xml" -print
+            '''
+        }
+
         stage('Compile') {
             sh '''
                 mvn clean compile \
-                org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile \
-                -Dmaven.compiler.source=8 \
-                -Dmaven.compiler.target=8
+                -Dmaven.compiler.source=1.8 \
+                -Dmaven.compiler.target=1.8
             '''
         }
 
@@ -29,9 +41,8 @@ node('ubuntu-agent') {
                     stage('Unit Test') {
                         sh '''
                             mvn test \
-                            org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile \
-                            -Dmaven.compiler.source=8 \
-                            -Dmaven.compiler.target=8
+                            -Dmaven.compiler.source=1.8 \
+                            -Dmaven.compiler.target=1.8
                         '''
                     }
                 },
@@ -53,7 +64,6 @@ node('ubuntu-agent') {
         }
 
         stage('GitLeaks') {
-
             sh '''
                 gitleaks detect \
                 --source . \
@@ -69,12 +79,10 @@ node('ubuntu-agent') {
         }
 
         stage('Package') {
-
             sh '''
                 mvn package -DskipTests \
-                org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile \
-                -Dmaven.compiler.source=8 \
-                -Dmaven.compiler.target=8
+                -Dmaven.compiler.source=1.8 \
+                -Dmaven.compiler.target=1.8
             '''
 
             archiveArtifacts(
