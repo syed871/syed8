@@ -20,12 +20,17 @@ node('ubuntu-agent') {
                 echo "===== Maven Version ====="
                 mvn -version
 
-                echo "===== Updating Maven Compiler Configuration ====="
+                echo "===== Fixing Maven Compiler Configuration ====="
 
-                sed -i 's/<source>1.8<\\/source>/<source>8<\\/source>/g' pom.xml
-                sed -i 's/<target>1.8<\\/target>/<target>8<\\/target>/g' pom.xml
+                sed -i 's/<artifactId>maven-compiler-plugin<\\/artifactId>/<artifactId>maven-compiler-plugin<\\/artifactId>/g' pom.xml
 
-                echo "===== Maven Compiler Plugin ====="
+                sed -i 's/<version>2.3.2<\\/version>/<version>3.8.1<\\/version>/g' pom.xml
+
+                sed -i 's/<source>1.6<\\/source>/<source>1.8<\\/source>/g' pom.xml
+
+                sed -i 's/<target>1.6<\\/target>/<target>1.8<\\/target>/g' pom.xml
+
+                echo "===== Updated Compiler Configuration ====="
                 grep -A8 -B2 "maven-compiler-plugin" pom.xml
 
                 echo "===== Maven Clean Compile ====="
@@ -83,7 +88,7 @@ node('ubuntu-agent') {
 
         stage('Package') {
             sh '''
-                echo "===== Creating WAR Package ====="
+                echo "===== Creating Package ====="
 
                 mvn package -DskipTests
             '''
