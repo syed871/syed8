@@ -3,6 +3,7 @@ node('ubuntu-agent') {
     try {
 
         stage('Checkout') {
+
             checkout scmGit(
                 branches: [[name: '*/master']],
                 extensions: [],
@@ -12,7 +13,9 @@ node('ubuntu-agent') {
             )
         }
 
+
         stage('Compile') {
+
             sh '''
                 echo "===== Java Version ====="
                 java -version
@@ -24,32 +27,28 @@ node('ubuntu-agent') {
 
                 python3 - <<'PY'
 from pathlib import Path
+import re
 
 pom = Path("pom.xml")
 text = pom.read_text()
 
-old = """<artifactId>maven-compiler-plugin</artifactId>
-\t\t\t\t<version>2.3.2</version>
-\t\t\t\t<configuration>
-\t\t\t\t\t<source>1.6</source>
-\t\t\t\t\t<target>1.6</target>
-\t\t\t\t</configuration>"""
+pattern = r'(<artifactId>maven-compiler-plugin</artifactId>\\s*<version>)2\\.3\\.2(</version>\\s*<configuration>\\s*<source>)1\\.6(</source>\\s*<target>)1\\.6(</target>)'
 
-new = """<artifactId>maven-compiler-plugin</artifactId>
-\t\t\t\t<version>3.8.1</version>
-\t\t\t\t<configuration>
-\t\t\t\t\t<source>1.8</source>
-\t\t\t\t\t<target>1.8</target>
-\t\t\t\t</configuration>"""
+new_text, count = re.subn(
+    pattern,
+    r'\\g<1>3.8.1\\g<2>1.8\\g<3>1.8\\g<4>',
+    text,
+    count=1
+)
 
-if old not in text:
-    raise SystemExit("Expected Maven compiler configuration was not found")
-
-text = text.replace(old, new)
-pom.write_text(text)
+if count == 0:
+    print("Compiler plugin already updated or original configuration not found")
+else:
+    pom.write_text(new_text)
+    print("Maven Compiler Plugin updated successfully")
 PY
 
-                echo "===== Updated Maven Compiler Configuration ====="
+                echo "===== Maven Compiler Plugin Configuration ====="
 
                 grep -A8 -B2 "maven-compiler-plugin" pom.xml
 
@@ -59,12 +58,15 @@ PY
             '''
         }
 
+
         stage('Unit Test and OWASP Dependency Check') {
 
             parallel(
 
                 'Unit Test': {
+
                     stage('Unit Test') {
+
                         sh '''
                             echo "===== Running Unit Tests ====="
 
@@ -74,25 +76,37 @@ PY
                     }
                 },
 
+
                 'OWASP Dependency Check': {
+
                     stage('OWASP Dependency Check') {
 
-                        echo "===== Running OWASP Dependency Check ====="
+                        withCredentials([
+                            string(
+                                credentialsId: 'nvd-api-key',
+                                variable: 'NVD_API_KEY'
+                            )
+                        ]) {
 
-                        dependencyCheck(
-                            additionalArguments: '--scan ./',
-                            odcInstallation: 'Dependency-Check'
-                        )
+                            echo "===== Running OWASP Dependency Check ====="
 
-                        dependencyCheckPublisher(
-                            pattern: '**/dependency-check-report.xml'
-                        )
+                            dependencyCheck(
+                                additionalArguments: "--scan ./ --nvdApiKey ${NVD_API_KEY}",
+                                odcInstallation: 'Dependency-Check'
+                            )
+
+                            dependencyCheckPublisher(
+                                pattern: '**/dependency-check-report.xml'
+                            )
+                        }
                     }
                 }
             )
         }
 
+
         stage('GitLeaks') {
+
             sh '''
                 echo "===== Running GitLeaks ====="
 
@@ -109,8 +123,39 @@ PY
             )
         }
 
+
         stage('Package') {
+
             sh '''
+                echo "===== Fixing Maven WAR Plugin ====="
+
+                python3 - <<'PY'
+from pathlib import Path
+import re
+
+pom = Path("pom.xml")
+text = pom.read_text()
+
+pattern = r'(<artifactId>maven-war-plugin</artifactId>\\s*<version>)2\\.1\\.1(</version>)'
+
+new_text, count = re.subn(
+    pattern,
+    r'\\g<1>3.4.0\\g<2>',
+    text,
+    count=1
+)
+
+if count == 0:
+    print("WAR plugin 2.1.1 not found - checking current version")
+else:
+    pom.write_text(new_text)
+    print("Maven WAR Plugin updated successfully")
+PY
+
+                echo "===== Maven WAR Plugin Configuration ====="
+
+                grep -A3 -B2 "maven-war-plugin" pom.xml
+
                 echo "===== Creating WAR Package ====="
 
                 mvn package -DskipTests
@@ -122,15 +167,20 @@ PY
             )
         }
 
-    } catch (err) {
+    }
+
+
+    catch (err) {
 
         echo "Build failed: ${err}"
 
         currentBuild.result = 'FAILURE'
 
         throw err
+    }
 
-    } finally {
+
+    finally {
 
         echo "===== Cleaning Workspace ====="
 
