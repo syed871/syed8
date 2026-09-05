@@ -12,24 +12,24 @@ node('ubuntu-agent') {
             )
         }
 
-        stage('Check Project') {
-            sh '''
-                echo "===== Current Directory ====="
-                pwd
-
-                echo "===== Project Files ====="
-                find . -maxdepth 3 -type f | sort
-
-                echo "===== POM Locations ====="
-                find . -name "pom.xml" -print
-            '''
-        }
-
         stage('Compile') {
             sh '''
-                mvn clean compile \
-                -Dmaven.compiler.source=1.8 \
-                -Dmaven.compiler.target=1.8
+                echo "===== Java Version ====="
+                java -version
+
+                echo "===== Maven Version ====="
+                mvn -version
+
+                echo "===== Updating Maven Compiler Configuration ====="
+
+                sed -i 's/<source>1.8<\\/source>/<source>8<\\/source>/g' pom.xml
+                sed -i 's/<target>1.8<\\/target>/<target>8<\\/target>/g' pom.xml
+
+                echo "===== Maven Compiler Plugin ====="
+                grep -A8 -B2 "maven-compiler-plugin" pom.xml
+
+                echo "===== Maven Clean Compile ====="
+                mvn clean compile
             '''
         }
 
@@ -40,15 +40,16 @@ node('ubuntu-agent') {
                 'Unit Test': {
                     stage('Unit Test') {
                         sh '''
-                            mvn test \
-                            -Dmaven.compiler.source=1.8 \
-                            -Dmaven.compiler.target=1.8
+                            echo "===== Running Unit Tests ====="
+                            mvn test
                         '''
                     }
                 },
 
                 'OWASP Dependency Check': {
                     stage('OWASP Dependency Check') {
+
+                        echo '===== Running OWASP Dependency Check ====='
 
                         dependencyCheck(
                             additionalArguments: '--scan ./',
@@ -65,6 +66,8 @@ node('ubuntu-agent') {
 
         stage('GitLeaks') {
             sh '''
+                echo "===== Running GitLeaks ====="
+
                 gitleaks detect \
                 --source . \
                 --no-git \
@@ -80,9 +83,9 @@ node('ubuntu-agent') {
 
         stage('Package') {
             sh '''
-                mvn package -DskipTests \
-                -Dmaven.compiler.source=1.8 \
-                -Dmaven.compiler.target=1.8
+                echo "===== Creating WAR Package ====="
+
+                mvn package -DskipTests
             '''
 
             archiveArtifacts(
@@ -101,7 +104,7 @@ node('ubuntu-agent') {
 
     } finally {
 
-        echo 'Cleaning workspace...'
+        echo '===== Cleaning Workspace ====='
 
         deleteDir()
     }
