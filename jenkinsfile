@@ -68,7 +68,8 @@ PY
                         sh '''
                             echo "===== Running Unit Tests ====="
 
-                            mvn test
+                            mvn test \
+                                -DargLine="--add-opens java.base/java.lang=ALL-UNNAMED"
                         '''
                     }
                 },
