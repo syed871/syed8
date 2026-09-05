@@ -20,20 +20,41 @@ node('ubuntu-agent') {
                 echo "===== Maven Version ====="
                 mvn -version
 
-                echo "===== Fixing Maven Compiler Configuration ====="
+                echo "===== Fixing Maven Compiler Plugin ====="
 
-                sed -i 's/<artifactId>maven-compiler-plugin<\\/artifactId>/<artifactId>maven-compiler-plugin<\\/artifactId>/g' pom.xml
+                python3 - <<'PY'
+from pathlib import Path
 
-                sed -i 's/<version>2.3.2<\\/version>/<version>3.8.1<\\/version>/g' pom.xml
+pom = Path("pom.xml")
+text = pom.read_text()
 
-                sed -i 's/<source>1.6<\\/source>/<source>1.8<\\/source>/g' pom.xml
+old = """<artifactId>maven-compiler-plugin</artifactId>
+\t\t\t\t<version>2.3.2</version>
+\t\t\t\t<configuration>
+\t\t\t\t\t<source>1.6</source>
+\t\t\t\t\t<target>1.6</target>
+\t\t\t\t</configuration>"""
 
-                sed -i 's/<target>1.6<\\/target>/<target>1.8<\\/target>/g' pom.xml
+new = """<artifactId>maven-compiler-plugin</artifactId>
+\t\t\t\t<version>3.8.1</version>
+\t\t\t\t<configuration>
+\t\t\t\t\t<source>1.8</source>
+\t\t\t\t\t<target>1.8</target>
+\t\t\t\t</configuration>"""
 
-                echo "===== Updated Compiler Configuration ====="
+if old not in text:
+    raise SystemExit("Expected Maven compiler configuration was not found")
+
+text = text.replace(old, new)
+pom.write_text(text)
+PY
+
+                echo "===== Updated Maven Compiler Configuration ====="
+
                 grep -A8 -B2 "maven-compiler-plugin" pom.xml
 
                 echo "===== Maven Clean Compile ====="
+
                 mvn clean compile
             '''
         }
@@ -46,6 +67,7 @@ node('ubuntu-agent') {
                     stage('Unit Test') {
                         sh '''
                             echo "===== Running Unit Tests ====="
+
                             mvn test
                         '''
                     }
@@ -54,7 +76,7 @@ node('ubuntu-agent') {
                 'OWASP Dependency Check': {
                     stage('OWASP Dependency Check') {
 
-                        echo '===== Running OWASP Dependency Check ====='
+                        echo "===== Running OWASP Dependency Check ====="
 
                         dependencyCheck(
                             additionalArguments: '--scan ./',
@@ -74,10 +96,10 @@ node('ubuntu-agent') {
                 echo "===== Running GitLeaks ====="
 
                 gitleaks detect \
-                --source . \
-                --no-git \
-                --report-format json \
-                --report-path gitleaks-report.json
+                    --source . \
+                    --no-git \
+                    --report-format json \
+                    --report-path gitleaks-report.json
             '''
 
             archiveArtifacts(
@@ -88,7 +110,7 @@ node('ubuntu-agent') {
 
         stage('Package') {
             sh '''
-                echo "===== Creating Package ====="
+                echo "===== Creating WAR Package ====="
 
                 mvn package -DskipTests
             '''
@@ -109,7 +131,7 @@ node('ubuntu-agent') {
 
     } finally {
 
-        echo '===== Cleaning Workspace ====='
+        echo "===== Cleaning Workspace ====="
 
         deleteDir()
     }
